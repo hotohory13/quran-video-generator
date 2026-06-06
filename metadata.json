@@ -1,6 +1,6 @@
 {
   "name": "Quran Video Generator",
-  "description": "A cinematic Quran recitation player and video generator tool. Features sequential audio syncing from EveryAyah, text overlays, and AI-generated background videos using Google Gemini Veo.",
+  "description": "A cinematic Quran recitation player and video generator tool. Features sequential audio syncing from EveryAyah, text overlays, dynamic audio spectrum visualizers, and beautiful loopable background videos.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

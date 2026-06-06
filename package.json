@@ -1,5 +1,5 @@
 {
-  "name": "quran-video-generator-(veo-integration)",
+  "name": "quran-video-generator",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,6 @@
     "start": "node dist/server.cjs"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "lucide-react": "^0.555.0",
