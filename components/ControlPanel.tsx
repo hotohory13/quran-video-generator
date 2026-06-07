@@ -36,6 +36,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   
   const [channelName, setChannelName] = useState(config.channelName);
   const [bgQuery, setBgQuery] = useState("Nature clouds");
+  const [lastSearchedQuery, setLastSearchedQuery] = useState("Nature clouds");
   const [currentMaxAyahs, setCurrentMaxAyahs] = useState(7);
   const [customVideoUrl, setCustomVideoUrl] = useState("");
   const [exportFormat, setExportFormat] = useState<ExportFormat>(config.exportFormat);
@@ -91,10 +92,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
     let newPlaylist: string[] | undefined = undefined;
 
-    // Search Pexels if no custom URL and bgQuery exists
-    if (!customVideoUrl && bgQuery) {
+    // Search Pexels only if query actually changed and it is filled and no custom URL
+    if (!customVideoUrl && bgQuery && bgQuery.trim() !== "" && bgQuery.trim().toLowerCase() !== lastSearchedQuery.trim().toLowerCase()) {
        const foundUrls = await handlePexelsSearchClick();
-       if (foundUrls.length > 0) newPlaylist = foundUrls;
+       if (foundUrls.length > 0) {
+           newPlaylist = foundUrls;
+           setLastSearchedQuery(bgQuery);
+       }
     }
 
     onConfigChange({
@@ -229,6 +233,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 type="button"
                 onClick={async () => {
                     const urls = await handlePexelsSearchClick();
+                    if (urls.length > 0) {
+                        setLastSearchedQuery(bgQuery);
+                    }
                     onConfigChange({
                         reciterId: selectedReciter,
                         surahNumber: selectedSurah,
@@ -236,7 +243,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                         endAyah: parseInt(endAyahInput) || 1,
                         channelName,
                         customVideoUrl: "",
-                        videoPlaylist: urls,
+                        ...(urls.length > 0 ? { videoPlaylist: urls } : {}),
                         exportFormat
                     });
                 }}

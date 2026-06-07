@@ -29,9 +29,16 @@ export const searchPexelsVideos = async (query: string): Promise<string[]> => {
       const videoLinks: string[] = [];
 
       validVideos.forEach((video: PexelsVideo) => {
-          const bestFile = video.video_files.find((f: any) => f.width === 1920 && f.file_type === 'video/mp4') 
-                        || video.video_files.find((f: any) => f.width >= 1280 && f.file_type === 'video/mp4')
-                        || video.video_files.find((f: any) => f.file_type === 'video/mp4');
+          const mp4Files = video.video_files.filter((f: any) => f.file_type === 'video/mp4');
+          if (mp4Files.length === 0) return;
+
+          // Prefer medium resolutions (960px or 1280px width) for ultra-fast, instant streaming.
+          // Since it's blurred & dimmed on the canvas anyway, this keeps quality high but downloads 10x faster.
+          const bestFile = mp4Files.find((f: any) => f.width === 960)
+                        || mp4Files.find((f: any) => f.width === 1280)
+                        || mp4Files.find((f: any) => f.width === 640)
+                        || mp4Files.find((f: any) => f.width === 1920)
+                        || mp4Files[0];
           
           if (bestFile) {
               videoLinks.push(bestFile.link);

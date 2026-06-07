@@ -8,7 +8,7 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY || "15LieZ3mueupQ9jnfXmsVfEcry
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || "3000", 10);
 
   app.use(cors());
   app.use(express.json());
@@ -43,6 +43,14 @@ async function startServer() {
     }
   });
 
+  // Dedicated Favicon Handlers to bypass aggressive browser caching and avoid returning HTML for favicon requests
+  app.get(["/favicon.ico", "/favicon.png"], (req, res) => {
+    const svgIcon = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='11' fill='#1e293b'/><rect x='6' y='6' width='12' height='12' rx='1.5' fill='#b45309' stroke='#fbbf24' stroke-width='1.5'/><rect x='6' y='6' width='12' height='12' rx='1.5' fill='#b45309' stroke='#fbbf24' stroke-width='1.5' transform='rotate(45 12 12)'/><circle cx='12' cy='12' r='4' fill='#78350f' stroke='#fbbf24' stroke-width='1'/><circle cx='12' cy='12' r='1' fill='#fffbeb'/></svg>`;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    res.send(svgIcon);
+  });
+
   // Vite middleware setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -53,7 +61,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

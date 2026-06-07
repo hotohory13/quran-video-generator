@@ -263,6 +263,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // Subtle buffering indicator drawn in the top-left corner if the background video is loading
+        if (video && video.readyState < 2 && !videoError && playlist.length > 0) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.font = 'normal 16px "Inter", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText("Buffering background video...", 60, 60);
+        }
+
         // 4. Floating Watermark Signature
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.font = 'bold 24px "Inter", sans-serif';

@@ -48,49 +48,58 @@ const App: React.FC = () => {
   }, []);
 
   const handleConfigUpdate = async (newConfig: VideoConfig) => {
-    setIsFetchingData(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    try {
-      // 1. Fetch Ayah Data (Text + Audio URLs)
-      const ayahs = await fetchAyahs(
-        newConfig.surahNumber,
-        newConfig.startAyah,
-        newConfig.endAyah,
-        newConfig.reciterId
-      );
-      
-      if (ayahs.length === 0) {
-        setErrorMsg("Could not fetch Verse data. Please check your internet or verse range.");
-      } else {
-        setSuccessMsg("Updated Recitation.");
+    // Only fetch new verses if surah, range, reciter changed, or if current list is empty
+    const needsRefetch = 
+      newConfig.surahNumber !== config.surahNumber ||
+      newConfig.startAyah !== config.startAyah ||
+      newConfig.endAyah !== config.endAyah ||
+      newConfig.reciterId !== config.reciterId ||
+      currentAyahs.length === 0;
+
+    if (needsRefetch) {
+      setIsFetchingData(true);
+      setErrorMsg(null);
+      setSuccessMsg(null);
+      try {
+        // 1. Fetch Ayah Data (Text + Audio URLs)
+        const ayahs = await fetchAyahs(
+          newConfig.surahNumber,
+          newConfig.startAyah,
+          newConfig.endAyah,
+          newConfig.reciterId
+        );
+        
+        if (ayahs.length === 0) {
+          setErrorMsg("Could not fetch Verse data. Please check your internet or verse range.");
+        } else {
+          setSuccessMsg("Updated Recitation.");
+        }
+
+        setCurrentAyahs(ayahs);
+      } catch (err) {
+          console.error(err);
+          setErrorMsg("An error occurred while setting up the player.");
+      } finally {
+        setIsFetchingData(false);
       }
-
-      setCurrentAyahs(ayahs);
-
-      // 2. Determine Video Playlist
-      let playlist = config.videoPlaylist;
-
-      // If custom URL is provided, it overrides the playlist to a single item
-      if (newConfig.customVideoUrl && newConfig.customVideoUrl.trim() !== "") {
-          playlist = [newConfig.customVideoUrl];
-      } 
-      // If a new playlist was provided by search/generation, use it
-      else if (newConfig.videoPlaylist && newConfig.videoPlaylist.length > 0) {
-          playlist = newConfig.videoPlaylist;
-      }
-      
-      setConfig({
-        ...newConfig,
-        videoPlaylist: playlist
-      });
-
-    } catch (err) {
-        console.error(err);
-        setErrorMsg("An error occurred while setting up the player.");
-    } finally {
-      setIsFetchingData(false);
     }
+
+    // Determine Video Playlist
+    let playlist = config.videoPlaylist;
+
+    // If custom URL is provided, it overrides the playlist to a single item
+    if (newConfig.customVideoUrl && newConfig.customVideoUrl.trim() !== "") {
+        playlist = [newConfig.customVideoUrl];
+    } 
+    // If a new playlist was provided by search/generation, use it
+    else if (newConfig.videoPlaylist && newConfig.videoPlaylist.length > 0) {
+        playlist = newConfig.videoPlaylist;
+    }
+    
+    setConfig({
+      ...newConfig,
+      videoPlaylist: playlist
+    });
   };
 
   const handlePexelsSearch = async (query: string): Promise<string[]> => {
