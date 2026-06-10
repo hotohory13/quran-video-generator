@@ -53,7 +53,8 @@ export const fetchAyahs = async (surahNumber: number, start: number, end: number
       // Construct Audio URL: https://www.everyayah.com/data/Reciter_Folder/SSSVVV.mp3
       const surahPad = pad3(surahNumber);
       const ayahPad = pad3(arAyah.numberInSurah);
-      const audioUrl = `${EVERYAYAH_BASE_URL}${reciterObj.subfolder}/${surahPad}${ayahPad}.mp3`;
+      const rawAudioUrl = `${EVERYAYAH_BASE_URL}${reciterObj.subfolder}/${surahPad}${ayahPad}.mp3`;
+      const audioUrl = `/api/audio-proxy?url=${encodeURIComponent(rawAudioUrl)}`;
 
       return {
         number: arAyah.number,

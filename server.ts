@@ -1,7 +1,66 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import https from "https";
+import http from "http";
 import { createServer as createViteServer } from "vite";
+
+// Helper to download audio from EveryAyah on the backend with fallback mechanisms and SSL ignore
+function fetchAudioWithFallback(url: string): Promise<{ data: Buffer; contentType: string }> {
+  return new Promise((resolve, reject) => {
+    const isHttps = url.startsWith("https:");
+    const client = isHttps ? https : http;
+    
+    const parsedUrl = new URL(url);
+    const options: any = {
+      protocol: parsedUrl.protocol,
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port,
+      path: parsedUrl.pathname + parsedUrl.search,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WebView/1.0"
+      }
+    };
+    
+    if (isHttps) {
+      options.rejectUnauthorized = false; // Bypasses potential SSL/certificate mismatch errors on EveryAyah
+    }
+
+    client.get(options, (res) => {
+      // Handle redirects
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        const redirectUrl = new URL(res.headers.location, url).toString();
+        fetchAudioWithFallback(redirectUrl).then(resolve).catch(reject);
+        return;
+      }
+
+      if (res.statusCode !== 200) {
+        reject(new Error(`Server returned status ${res.statusCode}`));
+        return;
+      }
+
+      const contentType = res.headers["content-type"] || "";
+      if (contentType.includes("text/html")) {
+        reject(new Error("Received HTML index page instead of audio stream. Possible invalid reciter folder or 404 page."));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve({
+          data: Buffer.concat(chunks),
+          contentType: contentType || "audio/mpeg"
+        });
+      });
+      res.on("error", (err) => {
+        reject(err);
+      });
+    }).on("error", (err) => {
+      reject(err);
+    });
+  });
+}
 
 // Pexels API Key moved from client to secure server environment
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY || "15LieZ3mueupQ9jnfXmsVfEcryZGDNwTITTVIgBM5o4aCeXLYPV5grBh";
@@ -40,6 +99,94 @@ async function startServer() {
     } catch (error: any) {
       console.error("Pexels search server error:", error);
       res.status(500).json({ error: "Failed to seek Pexels videos" });
+    }
+  });
+
+  // Dedicated Audio Proxy Endpoint to safely bypass CORS/Mixed-Content/SSL certificate validation blockages
+  app.get("/api/audio-proxy", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: "Missing url parameter" });
+      }
+
+      // Security check: only allow everyayah.com URLs
+      const parsedUrl = new URL(url);
+      if (!parsedUrl.hostname.endsWith("everyayah.com")) {
+        return res.status(400).json({ error: "Unauthorized target host" });
+      }
+
+      const urlsToTry = [url];
+      
+      const isHttps = url.startsWith("https://");
+      const hasWww = url.includes("www.everyayah.com");
+      
+      // Combinations of subdomains
+      const altSub = hasWww ? url.replace("www.everyayah.com", "everyayah.com") : url.replace("everyayah.com", "www.everyayah.com");
+      if (!urlsToTry.includes(altSub)) urlsToTry.push(altSub);
+      
+      // HTTP versions
+      if (isHttps) {
+        const httpUrl1 = url.replace("https://", "http://");
+        if (!urlsToTry.includes(httpUrl1)) urlsToTry.push(httpUrl1);
+        
+        const httpUrl2 = altSub.replace("https://", "http://");
+        if (!urlsToTry.includes(httpUrl2)) urlsToTry.push(httpUrl2);
+      }
+
+      let result = null;
+      let lastError = null;
+
+      for (const targetUrl of urlsToTry) {
+        try {
+          result = await fetchAudioWithFallback(targetUrl);
+          break; // Succeeded!
+        } catch (e: any) {
+          console.warn(`Fetch failed for: ${targetUrl}. Reason: ${e.message}`);
+          lastError = e;
+        }
+      }
+
+      if (!result) {
+        console.error("All audio proxy fallback attempts failed.");
+        return res.status(500).json({ error: "Could not stream audio from EveryAyah: " + (lastError?.message || "Unknown error") });
+      }
+
+      // Serve audio file with proper headers, wildcard CORS, and HTML5 standard Range request compatibility
+      const totalLength = result.data.length;
+      const rangeHeader = req.headers.range;
+
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=86400"); // 1 day cache
+
+      if (rangeHeader) {
+        const parts = rangeHeader.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : totalLength - 1;
+
+        if (start >= totalLength || end >= totalLength) {
+          res.setHeader("Content-Range", `bytes */${totalLength}`);
+          return res.status(416).send("Requested Range Not Satisfiable");
+        }
+
+        const chunksize = (end - start) + 1;
+        const slicedBuffer = result.data.subarray(start, end + 1);
+
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${totalLength}`);
+        res.setHeader("Content-Length", chunksize);
+        res.setHeader("Content-Type", result.contentType);
+        res.send(slicedBuffer);
+      } else {
+        res.setHeader("Content-Length", totalLength);
+        res.setHeader("Content-Type", result.contentType);
+        res.status(200).send(result.data);
+      }
+
+    } catch (err: any) {
+      console.error("Audio proxy main execution exception:", err);
+      res.status(500).json({ error: "Audio proxy exception: " + err.message });
     }
   });
 
